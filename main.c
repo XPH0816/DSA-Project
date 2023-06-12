@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -87,7 +88,7 @@ static string SongList[] = {
 	"Alesso, Katy Perry - When I'm Gone",
 	"Sam Feldt, Rita Ora - Follow Me",
 	"24kgoldn - More Than Friends",
-	"Sadie Jean - WYD Now?",
+	"Sadie Jean - WYD Now",
 	"Ruel - GROWING UP IS",
 	"Cheat Codes, Lee Brice, Lindsay Ell - How Do You Love",
 	"Kygo, X Ambassadors - Undeniable",
@@ -404,12 +405,12 @@ void play(const char *path)
 
 	ma_data_source_set_looping(&player.decoder, MA_TRUE);
 
-	player.deviceConfig = ma_device_config_init(ma_device_type_playback);
-	player.deviceConfig.playback.format = player.decoder.outputFormat;
-	player.deviceConfig.playback.channels = player.decoder.outputChannels;
-	player.deviceConfig.sampleRate = player.decoder.outputSampleRate;
-	player.deviceConfig.dataCallback = data_callback;
-	player.deviceConfig.pUserData = &player.decoder;
+    player.deviceConfig = ma_device_config_init(ma_device_type_playback);
+    player.deviceConfig.playback.format   = player.decoder.outputFormat;
+    player.deviceConfig.playback.channels = player.decoder.outputChannels;
+    player.deviceConfig.sampleRate        = player.decoder.outputSampleRate;
+    player.deviceConfig.dataCallback      = data_callback;
+    player.deviceConfig.pUserData         = &player.decoder;
 
 	if (ma_device_init(NULL, &player.deviceConfig, &player.device) != MA_SUCCESS)
 	{
@@ -558,20 +559,30 @@ void deleteSong(List *list, Cursor *cursor)
 		for (int i = 1; i < num; i++)
 			node = node->next;
 
-		if (node->prev != NULL)
+		if (node->prev != NULL && node->next != NULL)
 		{
 			node->prev->next = node->next;
 			node->next->prev = node->prev;
 		}
-		else
+
+		if(node->prev != NULL && node->next == NULL)
+		{
+			list->tail = node->prev;
+			node->prev->next = NULL;
+		}
+
+		if(node->prev == NULL && node->next != NULL)
 		{
 			list->head = node->next;
 			node->next->prev = NULL;
 		}
 
 		list->size--;
-		if (cursor->index > 0)
+		if (cursor->index > 1)
 			cursor->index--;
+		
+		node->next = NULL;
+		node->prev = NULL;
 		free(node);
 	}
 }
