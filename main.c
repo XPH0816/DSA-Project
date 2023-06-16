@@ -47,9 +47,8 @@ typedef struct CURSOR
 
 struct Player
 {
-	ma_decoder decoder;
-	ma_device device;
-	ma_device_config deviceConfig;
+	ma_sound sound;
+	ma_engine engine;
 } player;
 
 static string SongList[] = {
@@ -191,7 +190,6 @@ void getValidString(char *string, int min, int max, const char *message)
 		if (strlen(string) < min)
 			printf("Invalid input. Please try again.\n");
 	} while (strlen(string) < min);
-	trim(string);
 }
 
 Node *newNode()
@@ -363,25 +361,12 @@ bool selectSong(List *list)
 	return true;
 }
 
-void data_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount)
-{
-	ma_decoder *pDecoder = (ma_decoder *)pDevice->pUserData;
-	if (pDecoder == NULL)
-	{
-		return;
-	}
-
-	ma_decoder_read_pcm_frames(pDecoder, pOutput, frameCount, NULL);
-
-	(void)pInput;
-}
-
 void stop()
 {
-	if (ma_device__is_initialized(&player.device) == MA_TRUE)
+	if (ma_sound_is_playing(&player.sound))
 	{
-		ma_device_uninit(&player.device);
-		ma_decoder_uninit(&player.decoder);
+		ma_sound_stop(&player.sound);
+		ma_engine_uninit(&player.engine);
 	}
 }
 
@@ -396,36 +381,21 @@ void play(const char *path)
 
 	ma_result result;
 
-	result = ma_decoder_init_file(buffer, NULL, &player.decoder);
+	result = ma_engine_init(NULL, &player.engine);
 	if (result != MA_SUCCESS)
 	{
-		printf("Could not load file: %s\n", buffer);
-		exit(-2);
+		printf("Failed to initialize audio engine.");
+		exit(1);
 	}
 
-	ma_data_source_set_looping(&player.decoder, MA_TRUE);
-
-    player.deviceConfig = ma_device_config_init(ma_device_type_playback);
-    player.deviceConfig.playback.format   = player.decoder.outputFormat;
-    player.deviceConfig.playback.channels = player.decoder.outputChannels;
-    player.deviceConfig.sampleRate        = player.decoder.outputSampleRate;
-    player.deviceConfig.dataCallback      = data_callback;
-    player.deviceConfig.pUserData         = &player.decoder;
-
-	if (ma_device_init(NULL, &player.deviceConfig, &player.device) != MA_SUCCESS)
+	result = ma_sound_init_from_file(&player.engine, buffer, 0, NULL, NULL, &player.sound);
+	if (result != MA_SUCCESS)
 	{
-		printf("Failed to open playback device.\n");
-		ma_decoder_uninit(&player.decoder);
-		exit(-3);
+		printf("Failed to load sound file.");
+		exit(1);
 	}
-
-	if (ma_device_start(&player.device) != MA_SUCCESS)
-	{
-		printf("Failed to start playback device.\n");
-		ma_device_uninit(&player.device);
-		ma_decoder_uninit(&player.decoder);
-		exit(-4);
-	}
+	ma_sound_set_looping(&player.sound, MA_TRUE);
+	ma_sound_start(&player.sound);
 }
 
 void next(Cursor *cursor)
@@ -448,11 +418,9 @@ void next(Cursor *cursor)
 
 void prev(Cursor *cursor)
 {
-	if (cursor->index == 0)
-	{
-		printf("No Song is selected.\n");
+	if (!isSelected(cursor))
 		return;
-	}
+
 	if (cursor->node->prev == NULL)
 	{
 		printf("This is the first song.\n");
@@ -502,11 +470,9 @@ void playSong(List *list, Cursor *cursor)
 
 void delete(List *list, Cursor *cursor)
 {
-	if (cursor->index == 0)
-	{
-		printf("No Song is selected.\n");
+	if (!isSelected(cursor))
 		return;
-	}
+
 	Node *node = NULL;
 	if (cursor->node->next == NULL && cursor->node->prev != NULL)
 	{
@@ -516,6 +482,8 @@ void delete(List *list, Cursor *cursor)
 		list->tail = cursor->node;
 		printf("Playing %s\n", cursor->node->data.name);
 		play(cursor->node->data.name);
+		if (cursor->index > 1)
+			cursor->index--;
 	}
 	else if (cursor->node->next != NULL)
 	{
@@ -565,22 +533,22 @@ void deleteSong(List *list, Cursor *cursor)
 			node->next->prev = node->prev;
 		}
 
-		if(node->prev != NULL && node->next == NULL)
+		if (node->prev != NULL && node->next == NULL)
 		{
 			list->tail = node->prev;
 			node->prev->next = NULL;
 		}
 
-		if(node->prev == NULL && node->next != NULL)
+		if (node->prev == NULL && node->next != NULL)
 		{
 			list->head = node->next;
 			node->next->prev = NULL;
 		}
 
 		list->size--;
-		if (cursor->index > 1)
+		if (cursor->index > 1 && cursor->index > num)
 			cursor->index--;
-		
+
 		node->next = NULL;
 		node->prev = NULL;
 		free(node);

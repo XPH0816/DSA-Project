@@ -1,5 +1,6 @@
 CC = gcc
 TARGET_EXEC = main
+CFLAGS = -Wall -std=c11
 
 LIBS = 
 
@@ -8,7 +9,7 @@ LIBS =
 all: $(TARGET_EXEC) run clean
 
 $(TARGET_EXEC): main.c
-	$(CC) main.c -o $(TARGET_EXEC) $(LIBS)
+	$(CC) $(CFLAGS) main.c -o $(TARGET_EXEC) $(LIBS)
 
 run: $(TARGET_EXEC)
 	./$(TARGET_EXEC)
